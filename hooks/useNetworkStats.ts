@@ -5,6 +5,11 @@ export interface HistoryPoint {
   value: number;
 }
 
+export interface TopAddress {
+  address: string;
+  txCount: number;
+}
+
 export interface NetworkStats {
   blockNumber: number;
   gasPrice: string;
@@ -17,6 +22,11 @@ export interface NetworkStats {
   tpsHistory: HistoryPoint[];
   gasUsageHistory: HistoryPoint[];
   timestamp: number;
+  activeWallets: number;
+  contractsDeployed: number;
+  totalGasFeesUsdc: string;
+  usdcVolumeHistory: HistoryPoint[];
+  topAddresses: TopAddress[];
 }
 
 async function fetchStats(): Promise<NetworkStats> {
@@ -29,7 +39,7 @@ export function useNetworkStats() {
   const query = useQuery<NetworkStats>({
     queryKey: ["network-stats"],
     queryFn: fetchStats,
-    refetchInterval: 4_000,
+    refetchInterval: 8_000,
   });
 
   return {
@@ -46,5 +56,10 @@ export function useNetworkStats() {
     avgGasUsedPct: query.data?.avgGasUsedPct ?? 0,
     tpsHistory: query.data?.tpsHistory ?? [],
     gasUsageHistory: query.data?.gasUsageHistory ?? [],
+    activeWallets: query.data?.activeWallets ?? 0,
+    contractsDeployed: query.data?.contractsDeployed ?? 0,
+    totalGasFeesUsdc: query.data?.totalGasFeesUsdc ?? "0",
+    usdcVolumeHistory: query.data?.usdcVolumeHistory ?? [],
+    topAddresses: query.data?.topAddresses ?? [],
   };
 }

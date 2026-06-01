@@ -109,6 +109,32 @@ function gasColor(pct: number) {
   return C.green;
 }
 
+function formatUsdcVolume(total: number): string {
+  if (!Number.isFinite(total) || total <= 0) return "0 USDC";
+  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(1)}M USDC`;
+  if (total >= 1_000) return `${Math.round(total).toLocaleString("en-US")} USDC`;
+  return `${total.toFixed(2)} USDC`;
+}
+
+const sectionTitleS: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  color: C.dim,
+  textTransform: "uppercase",
+  letterSpacing: "0.09em",
+  marginTop: 20,
+  marginBottom: 10,
+};
+
+function UserIcon({ color }: { color: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden style={{ marginBottom: 6 }}>
+      <circle cx="12" cy="8" r="4" stroke={color} strokeWidth="2" />
+      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /* ════════ Tooltip renderers ════════ */
 
 const tipS: CSSProperties = { background: "#fff", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, fontFamily: "DM Mono, monospace", padding: "6px 10px" };
@@ -144,6 +170,8 @@ export default function DashboardPage() {
   const gasData = stats?.gasUsageHistory ?? [];
   const gasPct = stats?.avgGasUsedPct ?? 0;
   const gasCol = gasColor(gasPct);
+  const usdcVolumeTotal = (stats?.usdcVolumeHistory ?? []).reduce((s, p) => s + p.value, 0);
+  const topAddr = stats?.topAddresses?.[0];
 
   return (
     <>
@@ -192,6 +220,47 @@ export default function DashboardPage() {
             <div style={kpiLblS}>Block Time</div>
             <div style={kpiValS}>{sl ? <span style={{ color: C.dim }}>--</span> : `${stats!.avgBlockTime.toFixed(2)}s`}</div>
             <div style={kpiSubS}>temps moyen entre blocs</div>
+          </div>
+        </div>
+
+        {/* ── Activité réseau — 20 blocs ── */}
+        <div style={sectionTitleS}>Activité réseau — 20 derniers blocs</div>
+        <div style={metricGridS}>
+          <div style={metricCardS}>
+            <UserIcon color={C.blue} />
+            <div style={metricLblS}>Wallets actifs</div>
+            <div style={{ ...metricValS, color: C.blue }}>
+              {sl ? "--" : stats!.activeWallets.toLocaleString()}
+            </div>
+            <div style={metricSubS}>adresses uniques · 20 blocs</div>
+          </div>
+
+          <div style={metricCardS}>
+            <div style={metricLblS}>Volume USDC</div>
+            <div style={metricValS}>
+              {sl ? "--" : formatUsdcVolume(usdcVolumeTotal)}
+            </div>
+            <div style={metricSubS}>transferts ERC-20 · 20 blocs</div>
+          </div>
+
+          <div style={metricCardS}>
+            <div style={metricLblS}>Contrats déployés</div>
+            <div style={metricValS}>
+              {sl ? "--" : stats!.contractsDeployed.toLocaleString()}
+            </div>
+            <div style={metricSubS}>créations de contrat · 20 blocs</div>
+          </div>
+
+          <div style={metricCardS}>
+            <div style={metricLblS}>Frais gas estimés</div>
+            <div style={metricValS}>
+              {sl ? "--" : `${stats!.totalGasFeesUsdc} USDC`}
+            </div>
+            <div style={metricSubS}>
+              {topAddr
+                ? `top émetteur · ${topAddr.address.slice(0, 6)}…${topAddr.address.slice(-4)} (${topAddr.txCount} tx)`
+                : "gasPrice × gasLimit · 20 blocs"}
+            </div>
           </div>
         </div>
 
