@@ -7,7 +7,10 @@ export interface BlockSummary {
   transactionCount: number;
   gasUsed: string;
   gasLimit: string;
+  gasUsedPct: number;
   miner: string;
+  size: number | null;
+  blockTime: number;
 }
 
 async function fetchBlocks(): Promise<BlockSummary[]> {
