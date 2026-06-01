@@ -3,12 +3,43 @@ import { publicClient } from "@/lib/arc";
 import { getCached, setCache } from "@/lib/cache";
 import { formatUnits } from "viem";
 
-const CACHE_KEY = "network-stats-v4";
-const TTL = 8_000;
+const CACHE_KEY = "network-stats-v7";
+const TTL = 15_000;
 const BLOCK_DEPTH = 20;
+const TX_BLOCK_DEPTH = 3;
+const LOGS_TIMEOUT_MS = 3_000;
+const MAX_BLOCK_USDC = 1_000_000_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
 
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+function decodeTransferLogAmount(logData: string): number {
+  try {
+    const hex = logData.startsWith("0x") ? logData.slice(2) : logData;
+    const raw = BigInt(`0x${hex.padStart(64, "0")}`);
+
+    let amount = Number(raw / BigInt(10 ** 12)) / 1_000_000;
+
+    if (amount > 100_000_000_000) {
+      amount = Number(raw / BigInt(10 ** 18)) / 1_000_000;
+    }
+
+    if (amount > 1_000_000_000_000) {
+      amount = 0;
+    }
+
+    return Number.isFinite(amount) ? amount : 0;
+  } catch {
+    return 0;
+  }
+}
 
 interface HistoryPoint {
   blockNumber: number;
@@ -100,25 +131,23 @@ async function computeUsdcVolumeHistory(
         if (!block.hash) {
           return { blockNumber: Number(block.number), value: 0 };
         }
-        const logs = await publicClient.getLogs({
-          blockHash: block.hash,
-        });
+        const logs = await withTimeout(
+          publicClient.getLogs({ blockHash: block.hash }),
+          LOGS_TIMEOUT_MS,
+          []
+        );
 
-        let blockVolume = BigInt(0);
+        let blockVolume = 0;
         for (const log of logs) {
           if (log.topics[0] !== TRANSFER_TOPIC) continue;
           if (!log.data || log.data === "0x") continue;
-          try {
-            blockVolume += BigInt(log.data);
-          } catch {
-            // skip malformed log data
-          }
+          blockVolume += decodeTransferLogAmount(log.data);
         }
 
-        const value = Number(formatUnits(blockVolume, 6));
+        const value = Math.round(blockVolume * 100) / 100;
         return {
           blockNumber: Number(block.number),
-          value: Number.isFinite(value) ? Math.round(value * 100) / 100 : 0,
+          value: value < MAX_BLOCK_USDC ? value : 0,
         };
       })
     );
@@ -128,6 +157,7 @@ async function computeUsdcVolumeHistory(
         (r): r is PromiseFulfilledResult<HistoryPoint> => r.status === "fulfilled"
       )
       .map((r) => r.value)
+      .filter((p) => p.value < MAX_BLOCK_USDC)
       .sort((a, b) => a.blockNumber - b.blockNumber);
   } catch {
     return [];
@@ -162,17 +192,25 @@ export async function GET() {
 
     const latestNum = Number(latestBlock.number);
 
-    const blockPromises = Array.from({ length: BLOCK_DEPTH }, (_, i) =>
-      publicClient.getBlock({
-        blockNumber: BigInt(latestNum - i),
-        includeTransactions: true,
-      })
-    );
-    const blocks = await Promise.all(blockPromises);
+    const [blocks, txBlocks] = await Promise.all([
+      Promise.all(
+        Array.from({ length: BLOCK_DEPTH }, (_, i) =>
+          publicClient.getBlock({ blockNumber: BigInt(latestNum - i) })
+        )
+      ),
+      Promise.all(
+        Array.from({ length: TX_BLOCK_DEPTH }, (_, i) =>
+          publicClient.getBlock({
+            blockNumber: BigInt(latestNum - i),
+            includeTransactions: true,
+          })
+        )
+      ),
+    ]);
 
     blocks.sort((a, b) => Number(a.number) - Number(b.number));
 
-    const allTxs = blocks.flatMap(extractTxs);
+    const allTxs = txBlocks.flatMap(extractTxs);
 
     const blockTimes: number[] = [];
     for (let i = 1; i < blocks.length; i++) {
@@ -230,7 +268,7 @@ export async function GET() {
         Promise.resolve(computeActiveWallets(allTxs)),
         Promise.resolve(computeContractsDeployed(allTxs)),
         Promise.resolve(computeTotalGasFeesUsdc(allTxs)),
-        computeUsdcVolumeHistory(blocks),
+        withTimeout(computeUsdcVolumeHistory(blocks), LOGS_TIMEOUT_MS, []),
         Promise.resolve(computeTopAddresses(allTxs)),
       ]);
 

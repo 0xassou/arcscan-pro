@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { type CSSProperties, useEffect, useState } from "react";
 import Link from "next/link";
@@ -64,10 +64,33 @@ const chartWrapS: CSSProperties = { width: "100%", height: 180, minHeight: 180 }
 /* ════════ ROW 3 — Secondary metrics ════════ */
 
 const metricGridS: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 };
-const metricCardS: CSSProperties = { backgroundColor: C.bg2, borderRadius: 8, padding: "16px 18px" };
 const metricLblS: CSSProperties = { fontSize: 10, fontWeight: 600, color: C.dim, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 8 };
 const metricValS: CSSProperties = { fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "var(--font-dm-mono), monospace", lineHeight: 1.2 };
 const metricSubS: CSSProperties = { fontSize: 10, color: C.dim, marginTop: 5 };
+
+const row3CardS = (accent: string): CSSProperties => ({
+  backgroundColor: "#FAFAFA",
+  border: "1px solid #EAECEF",
+  borderLeft: `3px solid ${accent}`,
+  borderRadius: 8,
+  padding: "16px 18px",
+});
+const row3LblS: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  color: "#9CA3AF",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  marginBottom: 8,
+};
+const row3ValS: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 700,
+  color: C.text,
+  fontFamily: "var(--font-dm-mono), monospace",
+  lineHeight: 1.2,
+};
+const row3SubS: CSSProperties = { fontSize: 11, color: "#9CA3AF", marginTop: 6 };
 
 /* ════════ ROW 4 — Bottom 60/40 ════════ */
 
@@ -110,11 +133,26 @@ function gasColor(pct: number) {
 }
 
 function formatUsdcVolume(total: number): string {
-  if (!Number.isFinite(total) || total <= 0) return "0 USDC";
-  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(1)}M USDC`;
-  if (total >= 1_000) return `${Math.round(total).toLocaleString("en-US")} USDC`;
+  if (!Number.isFinite(total) || total <= 0) return "0.00 USDC";
+  if (total >= 1_000_000_000) return `${(total / 1_000_000_000).toFixed(2)}B USDC`;
+  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(2)}M USDC`;
+  if (total >= 1_000) return `${(total / 1_000).toFixed(1)}K USDC`;
   return `${total.toFixed(2)} USDC`;
 }
+
+const activityGridS: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, 1fr)",
+  gap: 12,
+};
+
+const activityCardS = (accent: string): CSSProperties => ({
+  backgroundColor: C.surf,
+  border: `1px solid ${C.border}`,
+  borderLeft: `3px solid ${accent}`,
+  borderRadius: 8,
+  padding: "16px 18px",
+});
 
 const sectionTitleS: CSSProperties = {
   fontSize: 10,
@@ -161,17 +199,24 @@ export default function DashboardPage() {
   const { data: blocks, isLoading: bl } = useBlocks();
 
   const [utc, setUtc] = useState("");
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    const tick = () => setUtc(new Date().toLocaleTimeString("en-GB", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " UTC");
-    tick(); const id = setInterval(tick, 1000); return () => clearInterval(id);
+    setMounted(true);
+    const tick = () => setUtc(new Date().toUTCString().slice(17, 25));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, []);
 
-  const tpsData = stats?.tpsHistory ?? [];
-  const gasData = stats?.gasUsageHistory ?? [];
-  const gasPct = stats?.avgGasUsedPct ?? 0;
+  const safeStats = mounted ? stats : null;
+  const showStats = Boolean(safeStats) && !sl;
+
+  const tpsData = safeStats?.tpsHistory ?? [];
+  const gasData = safeStats?.gasUsageHistory ?? [];
+  const gasPct = safeStats?.avgGasUsedPct ?? 0;
   const gasCol = gasColor(gasPct);
-  const usdcVolumeTotal = (stats?.usdcVolumeHistory ?? []).reduce((s, p) => s + p.value, 0);
-  const topAddr = stats?.topAddresses?.[0];
+  const usdcVolumeTotal = (safeStats?.usdcVolumeHistory ?? []).reduce((s, p) => s + p.value, 0);
 
   return (
     <>
@@ -184,83 +229,90 @@ export default function DashboardPage() {
           <div style={rightS}>
             <Badge variant="info">TESTNET</Badge>
             <LiveDot />
-            <span style={clockS}>{utc}</span>
+            <span style={clockS}>{mounted ? `${utc} UTC` : ""}</span>
           </div>
         </div>
-        <div style={subBarS}>
-          {stats ? (<>
-            <span>Block #{stats.blockNumber.toLocaleString()}</span>
-            <span style={dotSep}>&#183;</span>
-            <span>TPS: {stats.tps.toFixed(1)}</span>
-            <span style={dotSep}>&#183;</span>
-            <span>Block time: {stats.avgBlockTime.toFixed(2)}s</span>
-            <span style={dotSep}>&#183;</span>
-            <span>Gas: {parseFloat(stats.gasPrice).toFixed(2)} Gwei</span>
-          </>) : <span style={{ color: C.dim }}>Connecting to Arc Testnet...</span>}
-        </div>
+        {mounted && (
+          <div style={subBarS}>
+            {safeStats ? (
+              <>
+                <span>Block #{safeStats.blockNumber.toLocaleString()}</span>
+                <span style={dotSep}>&#183;</span>
+                <span>TPS: {safeStats.tps.toFixed(1)}</span>
+                <span style={dotSep}>&#183;</span>
+                <span>Block time: {safeStats.avgBlockTime.toFixed(2)}s</span>
+                <span style={dotSep}>&#183;</span>
+                <span>Gas: {parseFloat(safeStats.gasPrice).toFixed(2)} Gwei</span>
+              </>
+            ) : (
+              <span style={{ color: C.dim }}>Connecting to Arc Testnet...</span>
+            )}
+          </div>
+        )}
 
         {/* ── ROW 1 — 4 KPIs ── */}
         <div style={kpiGridS}>
           <div style={kpiCardS(C.green)}>
             <div style={kpiLblS}>Latest Block</div>
-            <div style={kpiValS}>{sl ? <span style={{ color: C.dim }}>--</span> : `#${stats!.blockNumber.toLocaleString()}`}</div>
-            <div style={kpiSubS}>{stats ? timeAgo(stats.timestamp) : ""}</div>
+            <div style={kpiValS}>{showStats ? `#${safeStats!.blockNumber.toLocaleString()}` : <span style={{ color: C.dim }}>--</span>}</div>
+            <div style={kpiSubS}>{safeStats ? timeAgo(safeStats.timestamp) : ""}</div>
           </div>
           <div style={kpiCardS(C.blue)}>
             <div style={kpiLblS}>TPS Live</div>
-            <div style={kpiValS}>{sl ? <span style={{ color: C.dim }}>--</span> : stats!.tps.toFixed(1)}</div>
+            <div style={kpiValS}>{showStats ? safeStats!.tps.toFixed(1) : <span style={{ color: C.dim }}>--</span>}</div>
             <div style={kpiSubS}>transactions / seconde</div>
           </div>
           <div style={kpiCardS(C.violet)}>
             <div style={kpiLblS}>Txns / Bloc</div>
-            <div style={kpiValS}>{sl ? <span style={{ color: C.dim }}>--</span> : stats!.avgTxnsPerBlock.toFixed(0)}</div>
+            <div style={kpiValS}>{showStats ? safeStats!.avgTxnsPerBlock.toFixed(0) : <span style={{ color: C.dim }}>--</span>}</div>
             <div style={kpiSubS}>moyenne 20 blocs</div>
           </div>
           <div style={kpiCardS(C.orange)}>
             <div style={kpiLblS}>Block Time</div>
-            <div style={kpiValS}>{sl ? <span style={{ color: C.dim }}>--</span> : `${stats!.avgBlockTime.toFixed(2)}s`}</div>
+            <div style={kpiValS}>{showStats ? `${safeStats!.avgBlockTime.toFixed(2)}s` : <span style={{ color: C.dim }}>--</span>}</div>
             <div style={kpiSubS}>temps moyen entre blocs</div>
           </div>
         </div>
 
         {/* ── Activité réseau — 20 blocs ── */}
-        <div style={sectionTitleS}>Activité réseau — 20 derniers blocs</div>
-        <div style={metricGridS}>
-          <div style={metricCardS}>
+        <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", marginTop: 20, marginBottom: 10 }}>
+          <div style={{ ...sectionTitleS, marginTop: 0, marginBottom: 0 }}>Activité réseau — 20 derniers blocs</div>
+          <span style={{ fontSize: 10, color: "#9CA3AF", marginLeft: 8 }}>
+            (métriques wallets sur 3 blocs · graphiques sur 20 blocs)
+          </span>
+        </div>
+        <div style={activityGridS}>
+          <div style={activityCardS(C.blue)}>
             <UserIcon color={C.blue} />
             <div style={metricLblS}>Wallets actifs</div>
             <div style={{ ...metricValS, color: C.blue }}>
-              {sl ? "--" : stats!.activeWallets.toLocaleString()}
+              {showStats ? safeStats!.activeWallets.toLocaleString() : "--"}
             </div>
-            <div style={metricSubS}>adresses uniques · 20 blocs</div>
+            <div style={metricSubS}>adresses uniques · 3 derniers blocs</div>
           </div>
 
-          <div style={metricCardS}>
+          <div style={activityCardS(C.green)}>
             <div style={metricLblS}>Volume USDC</div>
-            <div style={metricValS}>
-              {sl ? "--" : formatUsdcVolume(usdcVolumeTotal)}
+            <div style={{ ...metricValS, color: C.green }}>
+              {showStats ? formatUsdcVolume(usdcVolumeTotal) : "--"}
             </div>
-            <div style={metricSubS}>transferts ERC-20 · 20 blocs</div>
+            <div style={metricSubS}>transferts ERC-20 · 3 derniers blocs</div>
           </div>
 
-          <div style={metricCardS}>
+          <div style={activityCardS(C.violet)}>
             <div style={metricLblS}>Contrats déployés</div>
-            <div style={metricValS}>
-              {sl ? "--" : stats!.contractsDeployed.toLocaleString()}
+            <div style={{ ...metricValS, color: C.violet }}>
+              {showStats ? safeStats!.contractsDeployed.toLocaleString() : "--"}
             </div>
-            <div style={metricSubS}>créations de contrat · 20 blocs</div>
+            <div style={metricSubS}>nouveaux contrats · 3 derniers blocs</div>
           </div>
 
-          <div style={metricCardS}>
+          <div style={activityCardS(C.orange)}>
             <div style={metricLblS}>Frais gas estimés</div>
-            <div style={metricValS}>
-              {sl ? "--" : `${stats!.totalGasFeesUsdc} USDC`}
+            <div style={{ ...metricValS, color: C.orange }}>
+              {showStats ? `${safeStats!.totalGasFeesUsdc} USDC` : "--"}
             </div>
-            <div style={metricSubS}>
-              {topAddr
-                ? `top émetteur · ${topAddr.address.slice(0, 6)}…${topAddr.address.slice(-4)} (${topAddr.txCount} tx)`
-                : "gasPrice × gasLimit · 20 blocs"}
-            </div>
+            <div style={metricSubS}>gas estimé · 3 derniers blocs</div>
           </div>
         </div>
 
@@ -333,33 +385,33 @@ export default function DashboardPage() {
 
         {/* ── ROW 3 — 4 Secondary Metrics ── */}
         <div style={metricGridS}>
-          <div style={metricCardS}>
-            <div style={metricLblS}>Total Txns (20 Blocs)</div>
-            <div style={metricValS}>{sl ? "--" : stats!.totalTxns20Blocks.toLocaleString()}</div>
-            <div style={metricSubS}>sur les 20 derniers blocs</div>
+          <div style={row3CardS(C.blue)}>
+            <div style={row3LblS}>Total Txns (20 blocs)</div>
+            <div style={row3ValS}>{showStats ? safeStats!.totalTxns20Blocks.toLocaleString() : "--"}</div>
+            <div style={row3SubS}>sur les 20 derniers blocs</div>
           </div>
 
-          <div style={metricCardS}>
-            <div style={metricLblS}>Avg Gas Usage</div>
-            <div style={{ ...metricValS, color: gasCol }}>{sl ? "--" : `${gasPct.toFixed(1)}%`}</div>
-            <div style={{ marginTop: 8, height: 4, borderRadius: 2, backgroundColor: C.border }}>
+          <div style={row3CardS(gasCol)}>
+            <div style={row3LblS}>Avg Gas Usage</div>
+            <div style={{ ...row3ValS, color: gasCol }}>{showStats ? `${gasPct.toFixed(1)}%` : "--"}</div>
+            <div style={{ marginTop: 8, height: 4, borderRadius: 2, backgroundColor: "#EAECEF" }}>
               <div style={{ height: 4, borderRadius: 2, backgroundColor: gasCol, width: `${Math.min(gasPct, 100)}%`, transition: "width 0.4s" }} />
             </div>
           </div>
 
-          <div style={metricCardS}>
-            <div style={metricLblS}>Gas Price</div>
-            <div style={metricValS}>{sl ? "--" : `${parseFloat(stats!.gasPrice).toFixed(2)} Gwei`}</div>
-            <div style={metricSubS}>USDC -- Arc Testnet</div>
+          <div style={row3CardS("#6B7280")}>
+            <div style={row3LblS}>Gas Price</div>
+            <div style={row3ValS}>{showStats ? `${parseFloat(safeStats!.gasPrice).toFixed(2)} Gwei` : "--"}</div>
+            <div style={row3SubS}>USDC — Arc Testnet</div>
           </div>
 
-          <div style={metricCardS}>
-            <div style={metricLblS}>Statut Reseau</div>
+          <div style={row3CardS(C.green)}>
+            <div style={row3LblS}>Statut réseau</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
               <LiveDot label="" />
-              <span style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Operationnel</span>
+              <span style={{ ...row3ValS, color: C.green }}>Opérationnel</span>
             </div>
-            <div style={metricSubS}>Malachite PoA -- Chain 5042002</div>
+            <div style={row3SubS}>Malachite PoA — Chain 5042002</div>
           </div>
         </div>
 
@@ -426,10 +478,10 @@ export default function DashboardPage() {
             <div style={cardS}>
               <div style={{ ...secTitleS, marginBottom: 4 }}>Network Stats Live</div>
               {([
-                { l: "Total Txns (20 blocs)", v: stats ? stats.totalTxns20Blocks.toLocaleString() : "--" },
-                { l: "Avg Block Time", v: stats ? `${stats.avgBlockTime.toFixed(2)}s` : "--" },
-                { l: "Avg Gas Usage", v: stats ? `${stats.avgGasUsedPct}%` : "--" },
-                { l: "Avg Txns/Block", v: stats ? `${stats.avgTxnsPerBlock}` : "--" },
+                { l: "Total Txns (20 blocs)", v: safeStats ? safeStats.totalTxns20Blocks.toLocaleString() : "--" },
+                { l: "Avg Block Time", v: safeStats ? `${safeStats.avgBlockTime.toFixed(2)}s` : "--" },
+                { l: "Avg Gas Usage", v: safeStats ? `${safeStats.avgGasUsedPct}%` : "--" },
+                { l: "Avg Txns/Block", v: safeStats ? `${safeStats.avgTxnsPerBlock}` : "--" },
               ]).map(({ l, v }, i, arr) => (
                 <div key={l} style={{ ...statRowS, borderBottom: i === arr.length - 1 ? "none" : statRowS.borderBottom }}>
                   <span style={statLblS}>{l}</span><span style={statValS}>{v}</span>
