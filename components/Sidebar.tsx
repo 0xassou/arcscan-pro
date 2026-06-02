@@ -15,11 +15,7 @@ const sidebar: CSSProperties = {
 
 const logoWrap: CSSProperties = { padding: "20px 16px 18px", borderBottom: "1px solid var(--border)" };
 const logoRow: CSSProperties = { display: "flex", alignItems: "center", gap: 10, textDecoration: "none" };
-const logoSquare: CSSProperties = {
-  width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--blue)",
-  display: "flex", alignItems: "center", justifyContent: "center",
-  color: "#FFF", fontSize: 14, fontWeight: 700, flexShrink: 0,
-};
+const logoIcon: CSSProperties = { flexShrink: 0, display: "block" };
 const logoText: CSSProperties = { fontSize: 15, fontWeight: 700, color: "var(--text)" };
 const proBadge: CSSProperties = {
   fontSize: 9, fontWeight: 700, color: "var(--blue)", backgroundColor: "var(--blue-lt)",
@@ -61,7 +57,16 @@ export function Sidebar() {
     <aside style={sidebar}>
       <div style={logoWrap}>
         <Link href="/" style={logoRow}>
-          <div style={logoSquare}>A</div>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={logoIcon} aria-hidden>
+            <polygon
+              points="14,2 24,7.5 24,20.5 14,26 4,20.5 4,7.5"
+              fill="#1B4DDB"
+            />
+            <circle cx="14" cy="14" r="4" fill="none" stroke="white" strokeWidth="1.5" />
+            <circle cx="14" cy="14" r="7" fill="none" stroke="white" strokeWidth="0.75" strokeOpacity="0.5" />
+            <line x1="14" y1="14" x2="19" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="14" cy="14" r="1.5" fill="white" />
+          </svg>
           <span style={logoText}>ArcScan<span style={proBadge}>PRO</span></span>
         </Link>
       </div>
